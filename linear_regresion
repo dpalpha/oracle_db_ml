@@ -1,0 +1,77 @@
+CREATE TABLE test_table (ID int, AREA float, ROOMS float, ODD float, PRICE float);
+
+INSERT INTO test_table SELECT 1, 2202, 3, 1, 400 from dual;
+INSERT INTO test_table SELECT 2, 1600, 3, 0, 330 from dual;
+INSERT INTO test_table SELECT 3, 2400, 3, 1, 369 from dual;
+INSERT INTO test_table SELECT 4, 1416, 2, 1, 232 from dual;
+INSERT INTO test_table SELECT 5, 3000, 4, 0, 540 from dual;
+
+create table X_VAR as
+select id xid, 0 xn, 1 xv from  test_table
+union all
+select id, 1, ROOMS from test_table 
+union all 
+select id, 2, AREA from test_table 
+union all 
+select id, 3, ODD from test_table;
+                        
+create table Y_VAR as
+select id yid, 0 yn, PRICE yv from test_table;
+
+create table Z_VAR (zid int, zn int, zv float);
+insert into Z_VAR select id zid, 0 zn, PRICE zv from test_table;
+
+create table C_VAR (cxn int, czn int, cv float);
+insert into C_VAR select id, 0 zn, 1 zv from test_table;
+
+create table B_VAR (bn int, bv float);
+
+        
+declare 
+
+counter number;
+p number;
+
+begin
+
+select max(xn) as C into counter from X_VAR; 
+p := 1;
+
+while p <= counter
+loop
+
+INSERT INTO C_VAR
+SELECT XN CXN, ZN CZN, SUM(XV*ZV)/SUM(ZV*ZV) CV
+FROM X_VAR
+JOIN Z_VAR ON XID = ZID
+WHERE ZN = p-1 AND XN > ZN
+GROUP BY XN, ZN;
+
+INSERT INTO Z_VAR
+SELECT ZID, XN, XV-SUM(CV*ZV)
+FROM X_VAR
+JOIN Z_VAR ON XID = ZID
+JOIN C_VAR ON CZN = ZN AND CXN = XN
+WHERE 1=1 AND XN = p AND ZN < XN
+GROUP BY ZID, XN, XV;
+
+p := p+1;
+end loop;
+
+while p >=0 loop
+
+insert into B_VAR
+select zn,  sum(yv*zv)/sum(zv*zv) from Z_VAR
+join (select yid, yv-nvl(sum(bv*xv),0) yv from X_VAR join C_VAR on xid=yid 
+join B_VAR on xn = bn group by yid, yv) y
+on zid =yid where zn = p
+group by zn;
+
+p := p-1;
+
+end loop;
+
+end;
+/
+
+select * from C_VAR;
